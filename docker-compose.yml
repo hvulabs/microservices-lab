@@ -1,0 +1,169 @@
+services:
+  rabbitmq:
+    image: rabbitmq:4-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        APP_NAME: gateway
+    environment:
+      NODE_ENV: development
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://postgres:postgres@host.docker.internal:5432/postgres}
+      REDIS_URL: redis://redis:6379
+      GATEWAY_PORT: 3000
+      ORDER_SERVICE_URL: http://order-service:3001
+      WALLET_SERVICE_URL: http://wallet-service:3002
+    ports:
+      - "3000:3000"
+    depends_on:
+      redis:
+        condition: service_healthy
+      order-service:
+        condition: service_started
+      wallet-service:
+        condition: service_started
+
+  order-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        APP_NAME: order-service
+    environment:
+      NODE_ENV: development
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://postgres:postgres@host.docker.internal:5432/postgres}
+      REDIS_URL: redis://redis:6379
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      ORDER_SERVICE_PORT: 3001
+    ports:
+      - "3001:3001"
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  wallet-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        APP_NAME: wallet-service
+    environment:
+      NODE_ENV: development
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://postgres:postgres@host.docker.internal:5432/postgres}
+      REDIS_URL: redis://redis:6379
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      WALLET_SERVICE_PORT: 3002
+    ports:
+      - "3002:3002"
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  payment-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        APP_NAME: payment-service
+    environment:
+      NODE_ENV: development
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://postgres:postgres@host.docker.internal:5432/postgres}
+      REDIS_URL: redis://redis:6379
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      PAYMENT_SERVICE_PORT: 3003
+      MOCK_PSP_URL: http://mock-psp:3005
+      MOCK_PSP_WEBHOOK_SECRET: ${MOCK_PSP_WEBHOOK_SECRET:-local-dev-webhook-secret}
+    ports:
+      - "3003:3003"
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      mock-psp:
+        condition: service_started
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        APP_NAME: notification-service
+    environment:
+      NODE_ENV: development
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://postgres:postgres@host.docker.internal:5432/postgres}
+      REDIS_URL: redis://redis:6379
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      NOTIFICATION_SERVICE_PORT: 3004
+    ports:
+      - "3004:3004"
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  mock-psp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        APP_NAME: mock-psp
+    environment:
+      NODE_ENV: development
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://postgres:postgres@host.docker.internal:5432/postgres}
+      REDIS_URL: redis://redis:6379
+      MOCK_PSP_PORT: 3005
+      MOCK_PSP_MODE: ${MOCK_PSP_MODE:-success}
+      MOCK_PSP_DELAY_MS: ${MOCK_PSP_DELAY_MS:-1000}
+      MOCK_PSP_WEBHOOK_SECRET: ${MOCK_PSP_WEBHOOK_SECRET:-local-dev-webhook-secret}
+      PAYMENT_SERVICE_URL: http://payment-service:3003
+    ports:
+      - "3005:3005"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        APP_NAME: web
+    environment:
+      VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-http://127.0.0.1:5433}
+      VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:-}
+    ports:
+      - "5173:5173"
+    depends_on:
+      - gateway

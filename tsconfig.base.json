@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "ES2022",
+    "declaration": true,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "sourceMap": true,
+    "outDir": "./dist",
+    "incremental": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "noFallthroughCasesInSwitch": true,
+    "esModuleInterop": true,
+    "paths": {
+      "@lab/common": ["./libs/common/src/index.ts"],
+      "@lab/database": ["./libs/database/src/index.ts"],
+      "@lab/contracts": ["./libs/contracts/src/index.ts"],
+      "@lab/messaging": ["./libs/messaging/src/index.ts"],
+      "@lab/outbox": ["./libs/outbox/src/index.ts"],
+      "@lab/inbox": ["./libs/inbox/src/index.ts"]
+    }
+  }
+}
